@@ -3,6 +3,7 @@ import Status from './Status';
 import Controls from './Controls';
 import Hand from './Hand';
 import jsonData from '../deck.json';
+import './styles/App.css';
 
 const App: React.FC = () => {
   enum GameState {
@@ -30,10 +31,8 @@ const App: React.FC = () => {
   const data = JSON.parse(JSON.stringify(jsonData.cards));
   const [deck, setDeck]: any[] = useState(data);
 
-  const [userCards, setUserCards]: any[] = useState([]);
-  const [userScore, setUserScore] = useState(0);
-  const [userCount, setUserCount] = useState(0);
-
+  const [players, setPlayers] = useState<{ uuid: string, team: string }[]>([]);
+  const [playerHands, setPlayerHands] = useState<{ [key: string]: any[] }>({});
   const [dealerCards, setDealerCards]: any[] = useState([]);
   const [dealerScore, setDealerScore] = useState(0);
   const [dealerCount, setDealerCount] = useState(0);
@@ -49,45 +48,69 @@ const App: React.FC = () => {
     resetDisabled: true
   });
 
+  // const socket = io('http://your-socket-server-url');
+
   useEffect(() => {
+    const fetchPlayers = async () => {
+      try {
+        console.log('Fetching players...');
+        const response = await fetch('/api/data');
+        const textResponse = await response.text();
+        console.log('Raw response:', textResponse);
+        const newPlayers = JSON.parse(textResponse) as { uuid: string; team: string }[];
+        console.log('Players fetched:', newPlayers);
+        
+        const teamMap = new Map<string, { uuid: string; team: string }>();
+        newPlayers.forEach((player) => {
+          if (!teamMap.has(player.team)) {
+            teamMap.set(player.team, player);
+          }
+        });
+
+        setPlayers(Array.from(teamMap.values()));
+
+        // const uniqueTeams = Array.from(new Set(newPlayers.map((p) => p.team)));
+        // setPlayers(uniqueTeams.map((team) => ({ uuid: team, team })));
+        // console.log('Unique teams:', uniqueTeams);
+        // setPlayers(newPlayers);
+      } catch (error) {
+        console.error('Error fetching players:', error);
+      }
+    };
+
+
+    fetchPlayers();
+    const interval = setInterval(fetchPlayers, 50000); // Mise à jour toutes les 5 secondes
+
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    console.log('Game state changed:', gameState);
     if (gameState === GameState.init) {
-      drawCard(Deal.user);
-      drawCard(Deal.hidden);
-      drawCard(Deal.user);
       drawCard(Deal.dealer);
+      players.forEach(player => {
+        console.log('Dealing cards to player:', player);
+        drawCard(Deal.user, player.uuid);
+        drawCard(Deal.user, player.uuid);
+      });
       setGameState(GameState.userTurn);
       setMessage(Message.hitStand);
     }
-  }, [gameState]);
+  }, [gameState, players]);
 
   useEffect(() => {
-    calculate(userCards, setUserScore);
-    setUserCount(userCount + 1);
-  }, [userCards]);
-
-  useEffect(() => {
+    console.log('Dealer cards updated:', dealerCards);
     calculate(dealerCards, setDealerScore);
     setDealerCount(dealerCount + 1);
   }, [dealerCards]);
 
   useEffect(() => {
-    if (gameState === GameState.userTurn) {
-      if (userScore === 21) {
-        buttonState.hitDisabled = true;
-        setButtonState({ ...buttonState });
-      }
-      else if (userScore > 21) {
-        bust();
-      }
-    }
-  }, [userCount]);
-
-  useEffect(() => {
+    console.log('Dealer count updated:', dealerCount);
     if (gameState === GameState.dealerTurn) {
       if (dealerScore >= 17) {
         checkWin();
-      }
-      else {
+      } else {
         drawCard(Deal.dealer);
       }
     }
@@ -95,18 +118,13 @@ const App: React.FC = () => {
 
   const resetGame = () => {
     console.clear();
+    console.log('Resetting game...');
     setDeck(data);
-
-    setUserCards([]);
-    setUserScore(0);
-    setUserCount(0);
-
+    setPlayerHands({});
     setDealerCards([]);
     setDealerScore(0);
     setDealerCount(0);
-
     setBet(0);
-
     setGameState(GameState.bet);
     setMessage(Message.bet);
     setButtonState({
@@ -117,80 +135,61 @@ const App: React.FC = () => {
   }
 
   const placeBet = (amount: number) => {
+    console.log('Placing bet:', amount);
     setBet(amount);
     setBalance(Math.round((balance - amount) * 100) / 100);
     setGameState(GameState.init);
   }
 
-  const drawCard = (dealType: Deal) => {
+  const drawCard = (dealType: Deal, playerId?: string) => {
     if (deck.length > 0) {
       const randomIndex = Math.floor(Math.random() * deck.length);
       const card = deck[randomIndex];
       deck.splice(randomIndex, 1);
       setDeck([...deck]);
-      console.log('Remaining Cards:', deck.length);
-      switch (card.suit) {
-        case 'spades':
-          dealCard(dealType, card.value, '♠');
+      console.log('Drew card:', card, 'for', dealType, playerId);
+      switch (dealType) {
+        case Deal.user:
+          if (playerId) {
+            const newHand = playerHands[playerId] || [];
+            newHand.push(card);
+            setPlayerHands({ ...playerHands, [playerId]: newHand });
+          }
           break;
-        case 'diamonds':
-          dealCard(dealType, card.value, '♦');
+        case Deal.dealer:
+          dealerCards.push(card);
+          setDealerCards([...dealerCards]);
           break;
-        case 'clubs':
-          dealCard(dealType, card.value, '♣');
-          break;
-        case 'hearts':
-          dealCard(dealType, card.value, '♥');
+        case Deal.hidden:
+          dealerCards.push({ ...card, hidden: true });
+          setDealerCards([...dealerCards]);
           break;
         default:
           break;
       }
-    }
-    else {
+    } else {
       alert('All cards have been drawn');
     }
   }
 
-  const dealCard = (dealType: Deal, value: string, suit: string) => {
-    switch (dealType) {
-      case Deal.user:
-        userCards.push({ 'value': value, 'suit': suit, 'hidden': false });
-        setUserCards([...userCards]);
-        break;
-      case Deal.dealer:
-        dealerCards.push({ 'value': value, 'suit': suit, 'hidden': false });
-        setDealerCards([...dealerCards]);
-        break;
-      case Deal.hidden:
-        dealerCards.push({ 'value': value, 'suit': suit, 'hidden': true });
-        setDealerCards([...dealerCards]);
-        break;
-      default:
-        break;
-    }
-  }
-
   const revealCard = () => {
+    console.log('Revealing hidden cards...');
     dealerCards.filter((card: any) => {
       if (card.hidden === true) {
         card.hidden = false;
       }
       return card;
     });
-    setDealerCards([...dealerCards])
+    setDealerCards([...dealerCards]);
   }
 
-  const calculate = (cards: any[], setScore: any) => {
+  const calculate = (cards: any[], setScore: (score: number) => void) => {
     let total = 0;
     cards.forEach((card: any) => {
-      if (card.hidden === false && card.value !== 'A') {
+      if (!card.hidden && card.value !== 'A') {
         switch (card.value) {
           case 'K':
-            total += 10;
-            break;
           case 'Q':
-            total += 10;
-            break;
           case 'J':
             total += 10;
             break;
@@ -200,65 +199,50 @@ const App: React.FC = () => {
         }
       }
     });
-    const aces = cards.filter((card: any) => {
-      return card.value === 'A';
+    const aces = cards.filter((card: any) => card.value === 'A');
+    aces.forEach(() => {
+      total += (total + 11 > 21) ? 1 : 11;
     });
-    aces.forEach((card: any) => {
-      if (card.hidden === false) {
-        if ((total + 11) > 21) {
-          total += 1;
-        }
-        else if ((total + 11) === 21) {
-          if (aces.length > 1) {
-            total += 1;
-          }
-          else {
-            total += 11;
-          }
-        }
-        else {
-          total += 11;
-        }
-      }
-    });
+    console.log('Calculated score:', total);
     setScore(total);
   }
 
-  const hit = () => {
-    drawCard(Deal.user);
+  const hit = (playerId: string) => {
+    console.log('Player hits:', playerId);
+    drawCard(Deal.user, playerId);
   }
 
   const stand = () => {
-    buttonState.hitDisabled = true;
-    buttonState.standDisabled = true;
-    buttonState.resetDisabled = false;
-    setButtonState({ ...buttonState });
+    console.log('Player stands');
+    setButtonState({
+      hitDisabled: true,
+      standDisabled: true,
+      resetDisabled: false
+    });
     setGameState(GameState.dealerTurn);
     revealCard();
   }
 
-  const bust = () => {
-    buttonState.hitDisabled = true;
-    buttonState.standDisabled = true;
-    buttonState.resetDisabled = false;
-    setButtonState({ ...buttonState });
-    setMessage(Message.bust);
-  }
-
   const checkWin = () => {
-    if (userScore > dealerScore || dealerScore > 21) {
+    console.log('Checking win condition...');
+    const playerScores = Object.values(playerHands).map((hand: any[]) => {
+      let score = 0;
+      calculate(hand, (s: number) => score = s);
+      return score;
+    });
+    const maxPlayerScore = Math.max(...playerScores);
+
+    if (maxPlayerScore > dealerScore || dealerScore > 21) {
       setBalance(Math.round((balance + (bet * 2)) * 100) / 100);
       setMessage(Message.userWin);
-    }
-    else if (dealerScore > userScore) {
+    } else if (dealerScore > maxPlayerScore) {
       setMessage(Message.dealerWin);
-    }
-    else {
+    } else {
       setBalance(Math.round((balance + (bet * 1)) * 100) / 100);
       setMessage(Message.tie);
     }
   }
-
+  
   return (
     <>
       <Status message={message} balance={balance} />
@@ -267,12 +251,22 @@ const App: React.FC = () => {
         gameState={gameState}
         buttonState={buttonState}
         betEvent={placeBet}
-        hitEvent={hit}
+        hitEvent={(playerId: string) => hit(playerId)}
         standEvent={stand}
         resetEvent={resetGame}
       />
-      <Hand title={`Dealer's Hand (${dealerScore})`} cards={dealerCards} />
-      <Hand title={`Your Hand (${userScore})`} cards={userCards} />
+      <div className="table">
+        <div className="hand dealer">
+          <Hand title={`Dealer's Hand (${dealerScore})`} cards={dealerCards} />
+        </div>
+        {players.map((player, index) => (
+          console.log('Rendering player:', player),
+          console.log('Player hands:', playerHands),
+          <div key={player.uuid} className={`hand player player-${index}`}>
+            <Hand title={`Player ${player.team}'s Hand`} cards={playerHands[player.uuid] || []} />
+          </div>
+        ))}
+      </div>
     </>
   );
 }

@@ -1,0 +1,29 @@
+.table {
+    display: grid;
+    grid-template-areas:
+        'player-1 dealer player-2'
+        'player-4 dealer player-3';
+    gap: 20px;
+    justify-items: center;
+    align-items: center;
+}
+
+.hand.dealer {
+    grid-area: dealer;
+}
+
+.hand.player-0 {
+    grid-area: player-1;
+}
+
+.hand.player-1 {
+    grid-area: player-2;
+}
+
+.hand.player-2 {
+    grid-area: player-3;
+}
+
+.hand.player-3 {
+    grid-area: player-4;
+}
