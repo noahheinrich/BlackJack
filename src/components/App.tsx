@@ -31,7 +31,7 @@ const App: React.FC = () => {
   const data = JSON.parse(JSON.stringify(jsonData.cards));
   const [deck, setDeck]: any[] = useState(data);
 
-  const [players, setPlayers] = useState<{ uuid: string, team: string }[]>([]);
+  const [players, setPlayers] = useState<{ uuid: string; team: string; hit: string; stand: string }[]>([]);
   const [playerHands, setPlayerHands] = useState<{ [key: string]: any[] }>({});
   const [dealerCards, setDealerCards]: any[] = useState([]);
   const [dealerScore, setDealerScore] = useState(0);
@@ -48,8 +48,6 @@ const App: React.FC = () => {
     resetDisabled: true
   });
 
-  // const socket = io('http://your-socket-server-url');
-
   useEffect(() => {
     const fetchPlayers = async () => {
       try {
@@ -57,10 +55,10 @@ const App: React.FC = () => {
         const response = await fetch('/api/data');
         const textResponse = await response.text();
         console.log('Raw response:', textResponse);
-        const newPlayers = JSON.parse(textResponse) as { uuid: string; team: string }[];
+        const newPlayers = JSON.parse(textResponse) as { uuid: string; team: string; hit: string; stand: string }[];
         console.log('Players fetched:', newPlayers);
-        
-        const teamMap = new Map<string, { uuid: string; team: string }>();
+
+        const teamMap = new Map<string, { uuid: string; team: string; hit: string; stand: string }>();
         newPlayers.forEach((player) => {
           if (!teamMap.has(player.team)) {
             teamMap.set(player.team, player);
@@ -68,19 +66,13 @@ const App: React.FC = () => {
         });
 
         setPlayers(Array.from(teamMap.values()));
-
-        // const uniqueTeams = Array.from(new Set(newPlayers.map((p) => p.team)));
-        // setPlayers(uniqueTeams.map((team) => ({ uuid: team, team })));
-        // console.log('Unique teams:', uniqueTeams);
-        // setPlayers(newPlayers);
       } catch (error) {
         console.error('Error fetching players:', error);
       }
     };
 
-
     fetchPlayers();
-    const interval = setInterval(fetchPlayers, 50000); // Mise à jour toutes les 5 secondes
+    const interval = setInterval(fetchPlayers, 5000); // Mise à jour toutes les 5 secondes
 
     return () => clearInterval(interval);
   }, []);
@@ -101,7 +93,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
     console.log('Dealer cards updated:', dealerCards);
-    calculate(dealerCards, setDealerScore);
+    const score = calculate(dealerCards);
+    setDealerScore(score);
     setDealerCount(dealerCount + 1);
   }, [dealerCards]);
 
@@ -116,6 +109,25 @@ const App: React.FC = () => {
     }
   }, [dealerCount]);
 
+  // Gestion des actions "Hit" et "Stand" des joueurs
+  useEffect(() => {
+    players.forEach((player) => {
+      const playerId = player.uuid;
+
+      // Gestion du "Hit" : ajouter une carte si nécessaire
+      if (parseInt(player.hit) > ((playerHands[playerId] ? playerHands[playerId].length : 0)) && player.stand !== "1") {
+        console.log(`Player ${playerId} hits.`);
+        drawCard(Deal.user, playerId);
+      }
+
+      // Gestion du "Stand" : vérifier si le joueur a décidé de se coucher
+      if (player.stand === "1") {
+        console.log(`Player ${playerId} stands.`);
+        // Ajouter toute logique spécifique pour "stand" ici (si besoin)
+      }
+    });
+  }, [players, playerHands]);
+
   const resetGame = () => {
     console.clear();
     console.log('Resetting game...');
@@ -125,21 +137,21 @@ const App: React.FC = () => {
     setDealerScore(0);
     setDealerCount(0);
     setBet(0);
-    setGameState(GameState.bet); 
+    setGameState(GameState.bet);
     setMessage(Message.bet);
     setButtonState({
       hitDisabled: false,
       standDisabled: false,
       resetDisabled: true
     });
-  }
+  };
 
   const placeBet = (amount: number) => {
     console.log('Placing bet:', amount);
     setBet(amount);
     setBalance(Math.round((balance - amount) * 100) / 100);
     setGameState(GameState.init);
-  }
+  };
 
   const drawCard = (dealType: Deal, playerId?: string) => {
     if (deck.length > 0) {
@@ -148,12 +160,14 @@ const App: React.FC = () => {
       deck.splice(randomIndex, 1);
       setDeck([...deck]);
       console.log('Drew card:', card, 'for', dealType, playerId);
+
       switch (dealType) {
         case Deal.user:
           if (playerId) {
-            const newHand = playerHands[playerId] || [];
-            newHand.push(card);
-            setPlayerHands({ ...playerHands, [playerId]: newHand });
+            setPlayerHands((prevHands) => ({
+              ...prevHands,
+              [playerId]: [...(prevHands[playerId] || []), card],
+            }));
           }
           break;
         case Deal.dealer:
@@ -170,7 +184,7 @@ const App: React.FC = () => {
     } else {
       alert('All cards have been drawn');
     }
-  }
+  };
 
   const revealCard = () => {
     console.log('Revealing hidden cards...');
@@ -181,9 +195,13 @@ const App: React.FC = () => {
       return card;
     });
     setDealerCards([...dealerCards]);
-  }
+  };
 
-  const calculate = (cards: any[], setScore: (score: number) => void) => {
+  // Ajoutez un state pour gérer les scores des joueurs
+  const [playerScores, setPlayerScores] = useState<{ [key: string]: number }>({});
+
+  // Modifiez la fonction calculate pour qu'elle retourne le score
+  const calculate = (cards: any[]): number => {
     let total = 0;
     cards.forEach((card: any) => {
       if (!card.hidden && card.value !== 'A') {
@@ -203,14 +221,22 @@ const App: React.FC = () => {
     aces.forEach(() => {
       total += (total + 11 > 21) ? 1 : 11;
     });
-    console.log('Calculated score:', total);
-    setScore(total);
-  }
+    return total;
+  };
+
+  useEffect(() => {
+    const newScores: { [key: string]: number } = {};
+    Object.entries(playerHands).forEach(([playerId, cards]) => {
+      newScores[playerId] = calculate(cards);
+    });
+    setPlayerScores(newScores);
+  }, [playerHands]);
+
 
   const hit = (playerId: string) => {
     console.log('Player hits:', playerId);
     drawCard(Deal.user, playerId);
-  }
+  };
 
   const stand = () => {
     console.log('Player stands');
@@ -221,14 +247,12 @@ const App: React.FC = () => {
     });
     setGameState(GameState.dealerTurn);
     revealCard();
-  }
+  };
 
   const checkWin = () => {
     console.log('Checking win condition...');
     const playerScores = Object.values(playerHands).map((hand: any[]) => {
-      let score = 0;
-      calculate(hand, (s: number) => score = s);
-      return score;
+      return calculate(hand);
     });
     const maxPlayerScore = Math.max(...playerScores);
 
@@ -241,8 +265,8 @@ const App: React.FC = () => {
       setBalance(Math.round((balance + (bet * 1)) * 100) / 100);
       setMessage(Message.tie);
     }
-  }
-  
+  };
+
   return (
     <>
       <Status message={message} balance={balance} />
@@ -257,19 +281,22 @@ const App: React.FC = () => {
       />
       <div className="table">
         <div className="hand dealer">
-          <Hand title={`Dealer's Hand (${dealerScore})`} cards={dealerCards} />
+          <Hand 
+            title={`Dealer's Hand (${dealerScore})`} 
+            cards={dealerCards} 
+          />
         </div>
         {players.map((player, index) => (
-          console.log('Rendering player:', player),
-          console.log('Player hands:', playerHands),
           <div key={player.uuid} className={`hand player player-${index}`}>
-            <Hand title={`Player ${player.team}'s Hand`} cards={playerHands[player.uuid] || []} />
+            <Hand 
+              title={`Player ${player.team}'s Hand (${playerScores[player.uuid] || 0})`} 
+              cards={playerHands[player.uuid] || []} 
+            />
           </div>
         ))}
       </div>
     </>
   );
-}
-//test 
+};
 
 export default App;
