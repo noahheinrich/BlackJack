@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import Status from './Status';
-import Controls from './Controls';
+// import Status from './Status';
+// import Controls from './Controls';
 import Hand from './Hand';
 import jsonData from '../deck.json';
 import './styles/App.css';
+import styles from './styles/Status.module.css';
 
 const App: React.FC = () => {
   enum GameState {
-    bet,
+    // bet,
     init,
     userTurn,
-    dealerTurn
+    dealerTurn,
+    gameEnd
   }
 
   enum Deal {
@@ -36,12 +38,18 @@ const App: React.FC = () => {
   const [dealerCards, setDealerCards]: any[] = useState([]);
   const [dealerScore, setDealerScore] = useState(0);
   const [dealerCount, setDealerCount] = useState(0);
+  const [dealerTurnStarted, setDealerTurnStarted] = useState(false);
+
+  const [playerResults, setPlayerResults] = useState<{ [key: string]: string }>({});
+  const [previousHits, setPreviousHits] = useState<{ [key: string]: number }>({});
+  const [previousPlayers, setPreviousPlayers] = useState<{ [key: string]: boolean }>({});
+
 
   const [balance, setBalance] = useState(100);
   const [bet, setBet] = useState(0);
 
-  const [gameState, setGameState] = useState(GameState.bet);
-  const [message, setMessage] = useState(Message.bet);
+  const [gameState, setGameState] = useState(GameState.init);
+  // const [message, setMessage] = useState('');
   const [buttonState, setButtonState] = useState({
     hitDisabled: false,
     standDisabled: false,
@@ -82,14 +90,21 @@ const App: React.FC = () => {
     if (gameState === GameState.init) {
       drawCard(Deal.dealer);
       players.forEach(player => {
-        console.log('Dealing cards to player:', player);
         drawCard(Deal.user, player.uuid);
         drawCard(Deal.user, player.uuid);
       });
       setGameState(GameState.userTurn);
-      setMessage(Message.hitStand);
     }
-  }, [gameState, players]);
+  }, [gameState]);
+
+  useEffect(() => {
+    const allPlayersStand = players.every(player => player.stand === "1");
+    if (allPlayersStand && gameState === GameState.userTurn && !dealerTurnStarted) {
+      setDealerTurnStarted(true);
+      setGameState(GameState.dealerTurn);
+      revealCard();
+    }
+  }, [players, gameState]);
 
   useEffect(() => {
     console.log('Dealer cards updated:', dealerCards);
@@ -99,20 +114,30 @@ const App: React.FC = () => {
   }, [dealerCards]);
 
   useEffect(() => {
-    console.log('Dealer count updated:', dealerCount);
     if (gameState === GameState.dealerTurn) {
       if (dealerScore >= 17) {
         checkWin();
+        setGameState(GameState.gameEnd);
+        // Attendre 7 secondes puis redémarrer
+        setTimeout(async () => {
+          await resetPlayerCounters();
+          resetGame();
+        }, 7000);
       } else {
         drawCard(Deal.dealer);
       }
     }
-  }, [dealerCount]);
+  }, [dealerScore, gameState]);
 
   // Gestion des actions "Hit" et "Stand" des joueurs
   useEffect(() => {
+    const newPlayers: { [key: string]: boolean } = {};
+
     players.forEach((player) => {
       const playerId = player.uuid;
+      const currentHit = parseInt(player.hit, 10);
+      const previousHit = previousHits[playerId] || 0;
+      
 
       // Gestion du "Hit" : ajouter une carte si nécessaire
       if (parseInt(player.hit) > ((playerHands[playerId] ? playerHands[playerId].length : 0)) && player.stand !== "1") {
@@ -125,26 +150,82 @@ const App: React.FC = () => {
         console.log(`Player ${playerId} stands.`);
         // Ajouter toute logique spécifique pour "stand" ici (si besoin)
       }
+
+      if (currentHit > previousHit) {
+        console.log(`Player ${playerId} hit detected: ${currentHit} > ${previousHit}`);
+
+        // Ajouter une nouvelle carte pour ce joueur
+        drawCard(Deal.user, playerId);
+
+        // Mettre à jour le nombre de hits précédents
+        setPreviousHits((prev) => ({
+          ...prev,
+          [playerId]: currentHit
+        }));
+      }
+
+      if (!previousPlayers[playerId]) {
+        console.log(`New player detected: ${playerId}`);
+        
+        // Initialiser la main du nouveau joueur avec deux cartes
+        drawCard(Deal.user, playerId);
+        drawCard(Deal.user, playerId);
+      }
+
+      newPlayers[playerId] = true;
     });
+
+    setPreviousPlayers(newPlayers);
   }, [players, playerHands]);
 
   const resetGame = () => {
-    console.clear();
+    // console.clear();
     console.log('Resetting game...');
     setDeck(data);
     setPlayerHands({});
     setDealerCards([]);
     setDealerScore(0);
     setDealerCount(0);
-    setBet(0);
-    setGameState(GameState.bet);
-    setMessage(Message.bet);
-    setButtonState({
-      hitDisabled: false,
-      standDisabled: false,
-      resetDisabled: true
-    });
+    setDealerTurnStarted(false);
+    setPlayerResults({});
+    setGameState(GameState.init);
   };
+
+  const resetPlayerCounters = async () => {
+    try {
+      // Création d'un tableau avec les données mises à jour dans le bon ordre
+      const resetPlayers = players.map(player => ({
+        uuid: player.uuid,
+        team: player.team,
+        hit: "0",
+        stand: "0"
+      }));
+
+      console.log('Reset players:', resetPlayers);
+
+      resetPlayers.forEach(async (player) => {
+
+        console.log(player, "test");
+
+        const response = await fetch('http://www.api-table.jocelynmarcilloux.com/api/data', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(player)
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to reset player counters');
+        }
+      });
+
+      console.log('Players counters reset successfully');
+    } catch (error) {
+      console.error('Error resetting player counters:', error);
+    }
+  };
+
 
   const placeBet = (amount: number) => {
     console.log('Placing bet:', amount);
@@ -230,7 +311,40 @@ const App: React.FC = () => {
       newScores[playerId] = calculate(cards);
     });
     setPlayerScores(newScores);
-  }, [playerHands]);
+  
+    // Vérification si un joueur dépasse 21 et mise à jour automatique de "stand"
+    players.forEach((player) => {
+      const playerScore = newScores[player.uuid] || 0;
+      if (playerScore >= 22 && player.stand !== "1") {
+        console.log(`Player ${player.uuid} busts with score: ${playerScore}`);
+
+        // Mettre à jour les résultats du joueur avec le message "Bust!"
+        setPlayerResults((prevResults) => ({
+          ...prevResults,
+          [player.uuid]: Message.bust
+        }));
+
+        // Envoyer la mise à jour de "stand" à l'API
+        fetch('http://www.api-table.jocelynmarcilloux.com/api/data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uuid: player.uuid,
+            team: player.team,
+            hit: player.hit,
+            stand: "1"
+          })
+        })
+          .then((response) => {
+            if (!response.ok) throw new Error('Failed to update player stand');
+            console.log(`Player ${player.uuid} stand set to 1`);
+          })
+          .catch((error) => {
+            console.error('Error updating player stand:', error);
+          });
+      }
+    });
+  }, [playerHands, players]);
 
 
   const hit = (playerId: string) => {
@@ -251,34 +365,44 @@ const App: React.FC = () => {
 
   const checkWin = () => {
     console.log('Checking win condition...');
-    const playerScores = Object.values(playerHands).map((hand: any[]) => {
-      return calculate(hand);
+    const newResults: { [key: string]: string } = {};
+    
+    Object.entries(playerHands).forEach(([playerId, hand]) => {
+      const playerScore = playerScores[playerId] || 0;
+      
+      if (playerScore > 21) {
+        newResults[playerId] = Message.bust;
+      } else if (dealerScore > 21) {
+        newResults[playerId] = Message.userWin;
+      } else if (playerScore > dealerScore) {
+        newResults[playerId] = Message.userWin;
+      } else if (dealerScore > playerScore) {
+        newResults[playerId] = Message.dealerWin;
+      } else {
+        newResults[playerId] = Message.tie;
+      }
     });
-    const maxPlayerScore = Math.max(...playerScores);
+    
+    setPlayerResults(newResults);
+  };
 
-    if (maxPlayerScore > dealerScore || dealerScore > 21) {
-      setBalance(Math.round((balance + (bet * 2)) * 100) / 100);
-      setMessage(Message.userWin);
-    } else if (dealerScore > maxPlayerScore) {
-      setMessage(Message.dealerWin);
-    } else {
-      setBalance(Math.round((balance + (bet * 1)) * 100) / 100);
-      setMessage(Message.tie);
-    }
+  const PlayerResult: React.FC<{ message: string }> = ({ message }) => {
+    return (
+      <div className={styles.resultMessage} style={{
+        marginTop: '10px',
+        textAlign: 'center',
+        fontWeight: 'bold',
+        color: message === Message.userWin ? 'green' : 
+              message === Message.dealerWin ? 'red' : 
+              message === Message.bust ? 'red' : 'orange'
+      }}>
+        {message}
+      </div>
+    );
   };
 
   return (
     <>
-      <Status message={message} balance={balance} />
-      <Controls
-        balance={balance}
-        gameState={gameState}
-        buttonState={buttonState}
-        betEvent={placeBet}
-        hitEvent={(playerId: string) => hit(playerId)}
-        standEvent={stand}
-        resetEvent={resetGame}
-      />
       <div className="table">
         <div className="hand dealer">
           <Hand 
@@ -292,6 +416,9 @@ const App: React.FC = () => {
               title={`Player ${player.team}'s Hand (${playerScores[player.uuid] || 0})`} 
               cards={playerHands[player.uuid] || []} 
             />
+            {playerResults[player.uuid] && (
+              <PlayerResult message={playerResults[player.uuid]} />
+            )}
           </div>
         ))}
       </div>

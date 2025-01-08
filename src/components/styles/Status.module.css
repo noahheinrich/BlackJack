@@ -45,3 +45,23 @@
     font-size: 115%;
   }
 }
+
+.resultMessage {
+  padding: 8px;
+  border-radius: 4px;
+  margin-top: 10px;
+  font-size: 1.2em;
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
