@@ -43,7 +43,7 @@ const App: React.FC = () => {
   const [playerResults, setPlayerResults] = useState<{ [key: string]: string }>({});
   const [previousHits, setPreviousHits] = useState<{ [key: string]: number }>({});
   const [previousPlayers, setPreviousPlayers] = useState<{ [key: string]: boolean }>({});
-
+  const playerScoresRef = React.useRef<{ [key: string]: number }>({});
 
   const [balance, setBalance] = useState(100);
   const [bet, setBet] = useState(0);
@@ -137,24 +137,11 @@ const App: React.FC = () => {
       const playerId = player.uuid;
       const currentHit = parseInt(player.hit, 10);
       const previousHit = previousHits[playerId] || 0;
-      
+      const playerScore = playerScoresRef.current[playerId] || 0; // Utilisation de la référence
 
-      // Gestion du "Hit" : ajouter une carte si nécessaire
-      if (parseInt(player.hit) > ((playerHands[playerId] ? playerHands[playerId].length : 0)) && player.stand !== "1") {
-        console.log(`Player ${playerId} hits.`);
-        drawCard(Deal.user, playerId);
-      }
-
-      // Gestion du "Stand" : vérifier si le joueur a décidé de se coucher
-      if (player.stand === "1") {
-        console.log(`Player ${playerId} stands.`);
-        // Ajouter toute logique spécifique pour "stand" ici (si besoin)
-      }
-
-      if (currentHit > previousHit) {
-        console.log(`Player ${playerId} hit detected: ${currentHit} > ${previousHit}`);
-
-        // Ajouter une nouvelle carte pour ce joueur
+      // Vérifier si le joueur a dépassé 21 pour empêcher tout ajout de carte
+      if (playerScore <= 21 && currentHit > previousHit && player.stand !== "1") {
+        console.log(`Player ${playerId} hits with score: ${playerScore}`);
         drawCard(Deal.user, playerId);
 
         // Mettre à jour le nombre de hits précédents
@@ -166,7 +153,7 @@ const App: React.FC = () => {
 
       if (!previousPlayers[playerId]) {
         console.log(`New player detected: ${playerId}`);
-        
+
         // Initialiser la main du nouveau joueur avec deux cartes
         drawCard(Deal.user, playerId);
         drawCard(Deal.user, playerId);
@@ -177,6 +164,7 @@ const App: React.FC = () => {
 
     setPreviousPlayers(newPlayers);
   }, [players, playerHands]);
+
 
   const resetGame = () => {
     // console.clear();
@@ -311,7 +299,10 @@ const App: React.FC = () => {
       newScores[playerId] = calculate(cards);
     });
     setPlayerScores(newScores);
-  
+    
+    // Mettre à jour la référence avec les nouveaux scores
+    playerScoresRef.current = newScores;
+
     // Vérification si un joueur dépasse 21 et mise à jour automatique de "stand"
     players.forEach((player) => {
       const playerScore = newScores[player.uuid] || 0;
@@ -345,6 +336,7 @@ const App: React.FC = () => {
       }
     });
   }, [playerHands, players]);
+
 
 
   const hit = (playerId: string) => {
