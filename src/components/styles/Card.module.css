@@ -1,10 +1,10 @@
 .card {
-  width: 120px;
-  height: 260px;
+  width: 80px;
+  height: 160px;
   margin: 10px;
   padding: 0.5em 1.5em;
   background: rgb(230, 230, 230);
-  border-radius: 15px;
+  border-radius: 8px;
   box-shadow: 0px 1px 10px rgb(0, 0, 0);
   cursor: default;
 }
@@ -31,12 +31,12 @@
 }
 
 .value {
-  font-size: 400%;
+  font-size: 200%;
   margin: 0;
 }
 
 .suit {
-  font-size: 600%;
+  font-size: 500%;
   margin: 0;
   text-align: center;
 }

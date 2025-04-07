@@ -1,11 +1,53 @@
 .table {
+    height: 1440px;
     display: grid;
     grid-template-areas:
-        'player-1 dealer player-2'
-        'player-4 dealer player-3';
+        '. player-1 .'
+        'player-4 dealer player-2'
+        '. player-3 .';
     gap: 20px;
     justify-items: center;
     align-items: center;
+    background-image: url("../../../public/plateau.png");
+
+    p {
+        font-size: 32px;
+        color: white;
+    }
+
+    .actions-bottom{
+        position: absolute;
+        bottom: 0;
+        display: flex;
+        flex-direction: row;
+        gap: 300px;
+    }
+    .actions-top {
+        position: absolute;
+        top: 0;
+        display: flex;
+        flex-direction: row;
+        gap: 300px;
+        transform: rotate(180deg);
+    }
+    .actions-right {
+        transform: rotate(270deg);
+        position: absolute;
+        right: 0;
+        margin-right: -190px;
+        display: flex;
+        flex-direction: row;
+        gap: 300px;
+    }
+    .actions-left {
+        transform: rotate(90deg);
+        position: absolute;
+        left: 0;
+        margin-left: -190px;
+        display: flex;
+        flex-direction: row;
+        gap: 300px;
+    }
 }
 
 .hand.dealer {
@@ -14,10 +56,12 @@
 
 .hand.player-0 {
     grid-area: player-1;
+    transform: rotate(180deg);
 }
 
 .hand.player-1 {
     grid-area: player-2;
+    transform: rotate(270deg);
 }
 
 .hand.player-2 {
@@ -26,4 +70,17 @@
 
 .hand.player-3 {
     grid-area: player-4;
+    transform: rotate(90deg);
+}
+
+.player {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    p{
+        font-size: 32px;
+        color: white;
+    } 
 }
