@@ -113,7 +113,7 @@ const App: React.FC = () => {
     if (gameStarted) {
       fetchPlayers();
       // Met à jour les joueurs toutes les 5 secondes pour détecter les actions
-      const interval = setInterval(fetchPlayers, 5000);
+      const interval = setInterval(fetchPlayers, 2000);
       return () => clearInterval(interval);
     }
   }, [gameStarted]);
