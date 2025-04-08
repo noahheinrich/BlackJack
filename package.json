@@ -2,7 +2,7 @@
   "homepage": "https://jarodburchill.github.io/blackjack-react-app",
   "name": "blackjack-react-app",
   "version": "0.1.0",
-  "proxy": "http://www.api-table.jocelynmarcilloux.com",
+  "proxy": "http://localhost:8080",
   "private": true,
   "dependencies": {
     "@types/jest": "24.0.18",

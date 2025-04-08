@@ -4,31 +4,32 @@ import jsonData from "../deck.json";
 import "./styles/App.css";
 import styles from "./styles/Status.module.css";
 
+// Définition des états du jeu
+enum GameState {
+  init, // État initial
+  userTurn, // Tour des joueurs
+  dealerTurn, // Tour du dealer
+  gameEnd, // Fin de partie
+}
+
+// Types de distribution de cartes
+enum Deal {
+  user, // Carte pour un joueur
+  dealer, // Carte visible pour le dealer
+  hidden, // Carte cachée pour le dealer
+}
+
+// Messages d'état du jeu
+enum Message {
+  bet = "Place a Bet!",
+  hitStand = "Hit or Stand?",
+  bust = "Bust!",
+  userWin = "You Win!",
+  dealerWin = "Dealer Wins!",
+  tie = "Tie!",
+}
+
 const App: React.FC = () => {
-  // Définition des états du jeu
-  enum GameState {
-    init, // État initial
-    userTurn, // Tour des joueurs
-    dealerTurn, // Tour du dealer
-    gameEnd, // Fin de partie
-  }
-
-  // Types de distribution de cartes
-  enum Deal {
-    user, // Carte pour un joueur
-    dealer, // Carte visible pour le dealer
-    hidden, // Carte cachée pour le dealer
-  }
-
-  // Messages d'état du jeu
-  enum Message {
-    bet = "Place a Bet!",
-    hitStand = "Hit or Stand?",
-    bust = "Bust!",
-    userWin = "You Win!",
-    dealerWin = "Dealer Wins!",
-    tie = "Tie!",
-  }
 
   // État pour contrôler l'affichage de l'écran de démarrage
   const [gameStarted, setGameStarted] = useState(false);
@@ -81,7 +82,7 @@ const App: React.FC = () => {
 
       try {
         console.log("Fetching players...");
-        const response = await fetch("/api/data");
+        const response = await fetch("http://localhost:8080/api/data");
         const textResponse = await response.text();
         console.log("Raw response:", textResponse);
         const newPlayers = JSON.parse(textResponse) as {
@@ -238,7 +239,7 @@ const App: React.FC = () => {
         console.log(player, "test");
 
         const response = await fetch(
-          "http://www.api-table.jocelynmarcilloux.com/api/data",
+          "http://localhost:8080/api/data",
           {
             method: "POST",
             headers: {
@@ -358,7 +359,7 @@ const App: React.FC = () => {
         }));
 
         // Mise à jour du "stand" à 1 via l'API
-        fetch("http://www.api-table.jocelynmarcilloux.com/api/data", {
+        fetch("http://localhost:8080/api/data", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -471,31 +472,39 @@ const App: React.FC = () => {
 
   // Rendu principal avec écran de démarrage et interface de jeu
   return (
-    <>
-      {/* Écran de démarrage */}
-      <div style={startScreenStyle}>
-        <button style={startButtonStyle} onClick={startGame}>
-          BlackJack
-        </button>
-        <button style={startButtonStyleDisabled} disabled>
-          Casino
-        </button>
-        <button style={startButtonStyleDisabled} disabled>
-          Poker
-        </button>
-      </div>
+  <>
+    {/* Écran de démarrage */}
+    <div style={startScreenStyle}>
+      <button style={startButtonStyle} onClick={startGame}>
+        BlackJack
+      </button>
+      <button style={startButtonStyleDisabled} disabled>
+        Casino
+      </button>
+      <button style={startButtonStyleDisabled} disabled>
+        Poker
+      </button>
+    </div>
 
-      {/* Contenu du jeu */}
-      <div style={gameContentStyle}>
-        <div className="table">
-          <div className="hand dealer">
-            <Hand
-              title={`Dealer's Hand (${dealerScore})`}
-              cards={dealerCards}
-            />
-          </div>
-          {players.map((player, index) => (
-            <div key={player.uuid} className={`hand player player-${index}`}>
+    {/* Contenu du jeu */}
+    <div style={gameContentStyle}>
+      <div className="table">
+        <div className="hand dealer">
+          <Hand
+            title={`Dealer's Hand (${dealerScore})`}
+            cards={dealerCards}
+          />
+        </div>
+        {players.map((player) => {
+          // Déterminer la classe CSS en fonction de la couleur de l'équipe
+          const positionClass = 
+            player.team === "green" ? "player-0" : 
+            player.team === "blue" ? "player-1" : 
+            player.team === "yellow" ? "player-2" : 
+            player.team === "red" ? "player-3" : "";
+          
+          return (
+            <div key={player.uuid} className={`hand player ${positionClass}`}>
               <Hand
                 title={`Player ${player.team}'s Hand (${
                   playerScores[player.uuid] || 0
@@ -506,30 +515,31 @@ const App: React.FC = () => {
                 <PlayerResult message={playerResults[player.uuid]} />
               )}
               <div className="player">
-                <p>joueur {index + 1}</p>
+                <p>joueur {player.team}</p>
               </div>
             </div>
-          ))}
-          <div className="actions-top">
-            <p>Tirer</p>
-            <p>S'arrêter</p>
-          </div>
-          <div className="actions-right">
-            <p>Tirer</p>
-            <p>S'arrêter</p>
-          </div>
-          <div className="actions-bottom">
-            <p>Tirer</p>
-            <p>S'arrêter</p>
-          </div>
-          <div className="actions-left">
-            <p>Tirer</p>
-            <p>S'arrêter</p>
-          </div>
+          );
+        })}
+        <div className="actions-top">
+          <p>Tirer</p>
+          <p>S'arrêter</p>
+        </div>
+        <div className="actions-right">
+          <p>Tirer</p>
+          <p>S'arrêter</p>
+        </div>
+        <div className="actions-bottom">
+          <p>Tirer</p>
+          <p>S'arrêter</p>
+        </div>
+        <div className="actions-left">
+          <p>Tirer</p>
+          <p>S'arrêter</p>
         </div>
       </div>
-    </>
+    </div>
+  </>
   );
-};
+}
 
 export default App;
