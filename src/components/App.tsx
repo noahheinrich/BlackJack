@@ -1,26 +1,26 @@
 import React, { useState, useEffect } from "react";
-// import Status from './Status';
-// import Controls from './Controls';
 import Hand from "./Hand";
 import jsonData from "../deck.json";
 import "./styles/App.css";
 import styles from "./styles/Status.module.css";
 
 const App: React.FC = () => {
+  // Définition des états du jeu
   enum GameState {
-    // bet,
-    init,
-    userTurn,
-    dealerTurn,
-    gameEnd,
+    init, // État initial
+    userTurn, // Tour des joueurs
+    dealerTurn, // Tour du dealer
+    gameEnd, // Fin de partie
   }
 
+  // Types de distribution de cartes
   enum Deal {
-    user,
-    dealer,
-    hidden,
+    user, // Carte pour un joueur
+    dealer, // Carte visible pour le dealer
+    hidden, // Carte cachée pour le dealer
   }
 
+  // Messages d'état du jeu
   enum Message {
     bet = "Place a Bet!",
     hitStand = "Hit or Stand?",
@@ -30,21 +30,28 @@ const App: React.FC = () => {
     tie = "Tie!",
   }
 
-  // Ajout de l'état pour l'écran de démarrage
+  // État pour contrôler l'affichage de l'écran de démarrage
   const [gameStarted, setGameStarted] = useState(false);
 
+  // Initialisation du deck à partir du fichier JSON
   const data = JSON.parse(JSON.stringify(jsonData.cards));
   const [deck, setDeck]: any[] = useState(data);
 
+  // État pour stocker les joueurs récupérés de l'API
   const [players, setPlayers] = useState<
     { uuid: string; team: string; hit: string; stand: string }[]
   >([]);
+
+  // Stockage des mains de chaque joueur
   const [playerHands, setPlayerHands] = useState<{ [key: string]: any[] }>({});
+
+  // États relatifs au dealer
   const [dealerCards, setDealerCards]: any[] = useState([]);
   const [dealerScore, setDealerScore] = useState(0);
   const [dealerCount, setDealerCount] = useState(0);
   const [dealerTurnStarted, setDealerTurnStarted] = useState(false);
 
+  // Stockage des résultats et états précédents
   const [playerResults, setPlayerResults] = useState<{ [key: string]: string }>(
     {}
   );
@@ -54,29 +61,23 @@ const App: React.FC = () => {
   const [previousPlayers, setPreviousPlayers] = useState<{
     [key: string]: boolean;
   }>({});
+
+  // Référence pour les scores des joueurs (permet d'accéder aux valeurs à jour dans les effets)
   const playerScoresRef = React.useRef<{ [key: string]: number }>({});
 
-  // const [balance, setBalance] = useState(100);
-  // const [bet, setBet] = useState(0);
-
+  // État actuel du jeu
   const [gameState, setGameState] = useState(GameState.init);
-  // const [message, setMessage] = useState('');
-  // const [buttonState, setButtonState] = useState({
-  //   hitDisabled: false,
-  //   standDisabled: false,
-  //   resetDisabled: true
-  // });
 
-  // Fonction pour démarrer le jeu
+  // Fonction pour démarrer le jeu quand l'utilisateur clique sur le bouton
   const startGame = () => {
     setGameStarted(true);
-    // Initialiser le jeu seulement après le clic sur Start
     setGameState(GameState.init);
   };
 
+  // Effet pour récupérer les joueurs depuis l'API
   useEffect(() => {
     const fetchPlayers = async () => {
-      if (!gameStarted) return; // Ne pas charger les joueurs si le jeu n'a pas commencé
+      if (!gameStarted) return; // Ne charge les joueurs que si le jeu a commencé
 
       try {
         console.log("Fetching players...");
@@ -91,6 +92,7 @@ const App: React.FC = () => {
         }[];
         console.log("Players fetched:", newPlayers);
 
+        // Filtre pour n'avoir qu'un joueur par équipe
         const teamMap = new Map<
           string,
           { uuid: string; team: string; hit: string; stand: string }
@@ -109,15 +111,19 @@ const App: React.FC = () => {
 
     if (gameStarted) {
       fetchPlayers();
-      const interval = setInterval(fetchPlayers, 5000); // Mise à jour toutes les 5 secondes
+      // Met à jour les joueurs toutes les 5 secondes pour détecter les actions
+      const interval = setInterval(fetchPlayers, 5000);
       return () => clearInterval(interval);
     }
   }, [gameStarted]);
 
+  // Initialisation du jeu - distribution des cartes initiales
   useEffect(() => {
     console.log("Game state changed:", gameState);
     if (gameState === GameState.init && gameStarted) {
+      // Donne une carte au dealer
       drawCard(Deal.dealer);
+      // Donne 2 cartes à chaque joueur
       players.forEach((player) => {
         drawCard(Deal.user, player.uuid);
         drawCard(Deal.user, player.uuid);
@@ -126,6 +132,7 @@ const App: React.FC = () => {
     }
   }, [gameState, gameStarted, players]);
 
+  // Détection quand tous les joueurs ont "stand" pour passer au tour du dealer
   useEffect(() => {
     const allPlayersStand = players.every((player) => player.stand === "1");
     if (
@@ -139,6 +146,7 @@ const App: React.FC = () => {
     }
   }, [players, gameState]);
 
+  // Calcul du score du dealer quand ses cartes changent
   useEffect(() => {
     console.log("Dealer cards updated:", dealerCards);
     const score = calculate(dealerCards);
@@ -146,12 +154,13 @@ const App: React.FC = () => {
     setDealerCount(dealerCount + 1);
   }, [dealerCards]);
 
+  // Logique du tour du dealer (tire jusqu'à >=17, puis vérifie les gagnants)
   useEffect(() => {
     if (gameState === GameState.dealerTurn) {
       if (dealerScore >= 17) {
         checkWin();
         setGameState(GameState.gameEnd);
-        // Attendre 7 secondes puis redémarrer
+        // Attente de 7 secondes avant de réinitialiser pour une nouvelle partie
         setTimeout(async () => {
           await resetPlayerCounters();
           resetGame();
@@ -170,9 +179,9 @@ const App: React.FC = () => {
       const playerId = player.uuid;
       const currentHit = parseInt(player.hit, 10);
       const previousHit = previousHits[playerId] || 0;
-      const playerScore = playerScoresRef.current[playerId] || 0; // Utilisation de la référence
+      const playerScore = playerScoresRef.current[playerId] || 0;
 
-      // Vérifier si le joueur a dépassé 21 pour empêcher tout ajout de carte
+      // Donne une nouvelle carte si le joueur a "hit" et n'a pas dépassé 21
       if (
         playerScore <= 21 &&
         currentHit > previousHit &&
@@ -181,17 +190,15 @@ const App: React.FC = () => {
         console.log(`Player ${playerId} hits with score: ${playerScore}`);
         drawCard(Deal.user, playerId);
 
-        // Mettre à jour le nombre de hits précédents
         setPreviousHits((prev) => ({
           ...prev,
           [playerId]: currentHit,
         }));
       }
 
+      // Initialisation pour les nouveaux joueurs
       if (!previousPlayers[playerId]) {
         console.log(`New player detected: ${playerId}`);
-
-        // Initialiser la main du nouveau joueur avec deux cartes
         drawCard(Deal.user, playerId);
         drawCard(Deal.user, playerId);
       }
@@ -202,8 +209,8 @@ const App: React.FC = () => {
     setPreviousPlayers(newPlayers);
   }, [players, playerHands]);
 
+  // Fonction pour réinitialiser le jeu
   const resetGame = () => {
-    // console.clear();
     console.log("Resetting game...");
     setDeck(data);
     setPlayerHands({});
@@ -215,9 +222,9 @@ const App: React.FC = () => {
     setGameState(GameState.init);
   };
 
+  // Réinitialisation des compteurs des joueurs via l'API
   const resetPlayerCounters = async () => {
     try {
-      // Création d'un tableau avec les données mises à jour dans le bon ordre
       const resetPlayers = players.map((player) => ({
         uuid: player.uuid,
         team: player.team,
@@ -252,13 +259,7 @@ const App: React.FC = () => {
     }
   };
 
-  // const placeBet = (amount: number) => {
-  //   console.log('Placing bet:', amount);
-  //   setBet(amount);
-  //   setBalance(Math.round((balance - amount) * 100) / 100);
-  //   setGameState(GameState.init);
-  // };
-
+  // Fonction pour tirer une carte
   const drawCard = (dealType: Deal, playerId?: string) => {
     if (deck.length > 0) {
       const randomIndex = Math.floor(Math.random() * deck.length);
@@ -292,6 +293,7 @@ const App: React.FC = () => {
     }
   };
 
+  // Fonction pour révéler les cartes cachées du dealer
   const revealCard = () => {
     console.log("Revealing hidden cards...");
     dealerCards.filter((card: any) => {
@@ -303,12 +305,12 @@ const App: React.FC = () => {
     setDealerCards([...dealerCards]);
   };
 
-  // Ajoutez un state pour gérer les scores des joueurs
+  // État pour les scores des joueurs
   const [playerScores, setPlayerScores] = useState<{ [key: string]: number }>(
     {}
   );
 
-  // Modifiez la fonction calculate pour qu'elle retourne le score
+  // Fonction pour calculer le score d'une main
   const calculate = (cards: any[]): number => {
     let total = 0;
     cards.forEach((card: any) => {
@@ -325,6 +327,7 @@ const App: React.FC = () => {
         }
       }
     });
+    // Gestion spéciale des As (1 ou 11)
     const aces = cards.filter((card: any) => card.value === "A");
     aces.forEach(() => {
       total += total + 11 > 21 ? 1 : 11;
@@ -332,6 +335,7 @@ const App: React.FC = () => {
     return total;
   };
 
+  // Mise à jour des scores et détection automatique des "bust"
   useEffect(() => {
     const newScores: { [key: string]: number } = {};
     Object.entries(playerHands).forEach(([playerId, cards]) => {
@@ -339,22 +343,21 @@ const App: React.FC = () => {
     });
     setPlayerScores(newScores);
 
-    // Mettre à jour la référence avec les nouveaux scores
+    // Mise à jour de la référence pour accès dans d'autres effets
     playerScoresRef.current = newScores;
 
-    // Vérification si un joueur dépasse 21 et mise à jour automatique de "stand"
+    // Si un joueur dépasse 21, le marquer automatiquement comme "stand"
     players.forEach((player) => {
       const playerScore = newScores[player.uuid] || 0;
       if (playerScore >= 22 && player.stand !== "1") {
         console.log(`Player ${player.uuid} busts with score: ${playerScore}`);
 
-        // Mettre à jour les résultats du joueur avec le message "Bust!"
         setPlayerResults((prevResults) => ({
           ...prevResults,
           [player.uuid]: Message.bust,
         }));
 
-        // Envoyer la mise à jour de "stand" à l'API
+        // Mise à jour du "stand" à 1 via l'API
         fetch("http://www.api-table.jocelynmarcilloux.com/api/data", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -376,22 +379,7 @@ const App: React.FC = () => {
     });
   }, [playerHands, players]);
 
-  // const hit = (playerId: string) => {
-  //   console.log('Player hits:', playerId);
-  //   drawCard(Deal.user, playerId);
-  // };
-
-  // const stand = () => {
-  //   console.log('Player stands');
-  //   setButtonState({
-  //     hitDisabled: true,
-  //     standDisabled: true,
-  //     resetDisabled: false
-  //   });
-  //   setGameState(GameState.dealerTurn);
-  //   revealCard();
-  // };
-
+  // Fonction pour déterminer les gagnants à la fin du jeu
   const checkWin = () => {
     console.log("Checking win condition...");
     const newResults: { [key: string]: string } = {};
@@ -415,6 +403,7 @@ const App: React.FC = () => {
     setPlayerResults(newResults);
   };
 
+  // Composant pour afficher le résultat d'un joueur
   const PlayerResult: React.FC<{ message: string }> = ({ message }) => {
     return (
       <div
@@ -472,7 +461,7 @@ const App: React.FC = () => {
     color: "black",
     cursor: "not-allowed",
     border: "none",
-    borderRadius: "5px",  
+    borderRadius: "5px",
     boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
   };
 
@@ -480,6 +469,7 @@ const App: React.FC = () => {
     display: gameStarted ? "block" : "none",
   };
 
+  // Rendu principal avec écran de démarrage et interface de jeu
   return (
     <>
       {/* Écran de démarrage */}
