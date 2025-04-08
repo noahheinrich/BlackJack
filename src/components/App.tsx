@@ -30,6 +30,9 @@ const App: React.FC = () => {
     tie = "Tie!",
   }
 
+  // Ajout de l'état pour l'écran de démarrage
+  const [gameStarted, setGameStarted] = useState(false);
+
   const data = JSON.parse(JSON.stringify(jsonData.cards));
   const [deck, setDeck]: any[] = useState(data);
 
@@ -64,8 +67,17 @@ const App: React.FC = () => {
   //   resetDisabled: true
   // });
 
+  // Fonction pour démarrer le jeu
+  const startGame = () => {
+    setGameStarted(true);
+    // Initialiser le jeu seulement après le clic sur Start
+    setGameState(GameState.init);
+  };
+
   useEffect(() => {
     const fetchPlayers = async () => {
+      if (!gameStarted) return; // Ne pas charger les joueurs si le jeu n'a pas commencé
+
       try {
         console.log("Fetching players...");
         const response = await fetch("/api/data");
@@ -95,15 +107,16 @@ const App: React.FC = () => {
       }
     };
 
-    fetchPlayers();
-    const interval = setInterval(fetchPlayers, 5000); // Mise à jour toutes les 5 secondes
-
-    return () => clearInterval(interval);
-  }, []);
+    if (gameStarted) {
+      fetchPlayers();
+      const interval = setInterval(fetchPlayers, 5000); // Mise à jour toutes les 5 secondes
+      return () => clearInterval(interval);
+    }
+  }, [gameStarted]);
 
   useEffect(() => {
     console.log("Game state changed:", gameState);
-    if (gameState === GameState.init) {
+    if (gameState === GameState.init && gameStarted) {
       drawCard(Deal.dealer);
       players.forEach((player) => {
         drawCard(Deal.user, player.uuid);
@@ -111,7 +124,7 @@ const App: React.FC = () => {
       });
       setGameState(GameState.userTurn);
     }
-  }, [gameState]);
+  }, [gameState, gameStarted, players]);
 
   useEffect(() => {
     const allPlayersStand = players.every((player) => player.stand === "1");
@@ -425,45 +438,104 @@ const App: React.FC = () => {
     );
   };
 
+  // Styles pour l'écran de démarrage
+  const startScreenStyle: React.CSSProperties = {
+    display: gameStarted ? "none" : "flex",
+    position: "fixed",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "white",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  };
+
+  const startButtonStyle: React.CSSProperties = {
+    padding: "15px 30px",
+    fontSize: "24px",
+    fontWeight: "bold",
+    backgroundColor: "#4CAF50",
+    color: "white",
+    border: "none",
+    borderRadius: "5px",
+    cursor: "pointer",
+    boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
+  };
+
+  const startButtonStyleDisabled: React.CSSProperties = {
+    padding: "15px 30px",
+    fontSize: "24px",
+    fontWeight: "bold",
+    backgroundColor: "#grey",
+    color: "black",
+    cursor: "not-allowed",
+    border: "none",
+    borderRadius: "5px",  
+    boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
+  };
+
+  const gameContentStyle: React.CSSProperties = {
+    display: gameStarted ? "block" : "none",
+  };
+
   return (
     <>
-      <div className="table">
-        <div className="hand dealer">
-          <Hand title={`Dealer's Hand (${dealerScore})`} cards={dealerCards} />
-        </div>
-        {players.map((player, index) => (
-          <div key={player.uuid} className={`hand player player-${index}`}>
+      {/* Écran de démarrage */}
+      <div style={startScreenStyle}>
+        <button style={startButtonStyle} onClick={startGame}>
+          BlackJack
+        </button>
+        <button style={startButtonStyleDisabled} disabled>
+          Casino
+        </button>
+        <button style={startButtonStyleDisabled} disabled>
+          Poker
+        </button>
+      </div>
+
+      {/* Contenu du jeu */}
+      <div style={gameContentStyle}>
+        <div className="table">
+          <div className="hand dealer">
             <Hand
-              title={`Player ${player.team}'s Hand (${
-                playerScores[player.uuid] || 0
-              })`}
-              cards={playerHands[player.uuid] || []}
+              title={`Dealer's Hand (${dealerScore})`}
+              cards={dealerCards}
             />
-            {playerResults[player.uuid] && (
-              <PlayerResult message={playerResults[player.uuid]} />
-            )}
-            <div className="player">
-              <p>
-                joueur {index+1}
-              </p>
-            </div>
           </div>
-        ))}
-        <div className="actions-top">
-          <p>Tirer</p>
-          <p>S'arrêter</p>
-        </div>
-        <div className="actions-right">
-          <p>Tirer</p>
-          <p>S'arrêter</p>
-        </div>
-        <div className="actions-bottom">
-          <p>Tirer</p>
-          <p>S'arrêter</p>
-        </div>
-        <div className="actions-left">
-          <p>Tirer</p>
-          <p>S'arrêter</p>
+          {players.map((player, index) => (
+            <div key={player.uuid} className={`hand player player-${index}`}>
+              <Hand
+                title={`Player ${player.team}'s Hand (${
+                  playerScores[player.uuid] || 0
+                })`}
+                cards={playerHands[player.uuid] || []}
+              />
+              {playerResults[player.uuid] && (
+                <PlayerResult message={playerResults[player.uuid]} />
+              )}
+              <div className="player">
+                <p>joueur {index + 1}</p>
+              </div>
+            </div>
+          ))}
+          <div className="actions-top">
+            <p>Tirer</p>
+            <p>S'arrêter</p>
+          </div>
+          <div className="actions-right">
+            <p>Tirer</p>
+            <p>S'arrêter</p>
+          </div>
+          <div className="actions-bottom">
+            <p>Tirer</p>
+            <p>S'arrêter</p>
+          </div>
+          <div className="actions-left">
+            <p>Tirer</p>
+            <p>S'arrêter</p>
+          </div>
         </div>
       </div>
     </>

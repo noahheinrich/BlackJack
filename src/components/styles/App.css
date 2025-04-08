@@ -84,3 +84,39 @@
         color: white;
     } 
 }
+
+/* .startScreenStyle{
+    position: "fixed";
+    top: 0;
+    left: 0;
+    width: "100%";
+    height: "100%";
+    background-color: "white";
+    justify-content: "center";
+    align-items: "center";
+    z-index: 1000;
+}
+
+.startButtonStyle {
+    padding: "15px 30px";
+    font-size: "24px";
+    font-weight: "bold";
+    background-color: "#4CAF50";
+    color: "white";
+    border: "none";
+    border-radius: "5px";
+    cursor: "pointer";
+    box-shadow: "0 4px 8px rgba(0, 0, 0, 0.2)";
+}
+
+.startButtonStyleDisabled {
+    padding: "15px 30px";
+    font-size: "24px";
+    font-weight: "bold";
+    background-color: "grey";
+    color: "white";
+    border: "none";
+    border-radius: "5px";
+    cursor: "pointer";
+    box-shadow: "0 4px 8px rgba(0, 0, 0, 0.2)";
+} */
